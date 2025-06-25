@@ -6,7 +6,7 @@ export default {
 		const subdomain = url.hostname.split('.')[0];
 
 		// Look up the R2 path prefix from KV
-		const folderPrefix = await env.SUBDOMAIN_MAP.get(subdomain);
+		const folderPrefix = await env.Frontbase_KV_Binding.get(subdomain);
 		if (!folderPrefix) {
 			return new Response('Subdomain not mapped', { status: 404 });
 		}
@@ -20,19 +20,33 @@ export default {
 		const key = `${folderPrefix}${pathname}`;
 		console.log('Fetching R2 key:', key);
 
+		function isAsset(path) {
+			return /\.(js|css|png|jpg|jpeg|svg|ico|json|wasm|txt|woff2?|ttf|eot|gif|bmp|webp)$/i.test(path);
+		}
+
 		try {
 			const object = await env.R2Binding.get(key);
-			if (!object) {
-				return new Response('404 Not Found', { status: 404 });
+			if (object) {
+				// Serve the found file
+				const ext = pathname.split('.').pop();
+				const headers = new Headers();
+				const contentType = getMimeType(ext);
+				if (contentType) headers.set('Content-Type', contentType);
+				return new Response(await object.body, { headers });
 			}
 
-			// Determine content type
-			const ext = pathname.split('.').pop();
-			const headers = new Headers();
-			const contentType = getMimeType(ext);
-			if (contentType) headers.set('Content-Type', contentType);
+			// If not found and not an asset, try to serve index.html for SPA routes
+			if (!isAsset(pathname)) {
+				const indexKey = `${folderPrefix}/index.html`.replace(/\/{2,}/g, '/');
+				const indexObject = await env.R2Binding.get(indexKey);
+				if (indexObject) {
+					const headers = new Headers();
+					headers.set('Content-Type', 'text/html');
+					return new Response(await indexObject.body, { headers });
+				}
+			}
 
-			return new Response(await object.body, { headers });
+			return new Response('404 Not Found', { status: 404 });
 		} catch (err) {
 			return new Response('Server Error', { status: 500 });
 		}

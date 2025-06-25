@@ -1,4 +1,4 @@
-name = "test-worker"
+name = "frontbase"
 main = "src/worker.js"
 compatibility_date = "2023-08-23"
 
@@ -16,3 +16,4 @@ preview_bucket_name = "frontbase"
 [[kv_namespaces]]
 binding = "Frontbase_KV_Binding"
 id = "652095ec9aae4b2b806ca93edfd75412"
+preview_id = "652095ec9aae4b2b806ca93edfd75412"
