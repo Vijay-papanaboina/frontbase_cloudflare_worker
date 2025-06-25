@@ -12,6 +12,7 @@ bucket_name = "frontbase"
 preview_bucket_name = "frontbase"
 
 
-# [[routes]]
-# pattern = "*.agrifacts.space/*"
-# custom_domain = true
+
+[[kv_namespaces]]
+binding = "Frontbase_KV_Binding"
+id = "652095ec9aae4b2b806ca93edfd75412"
