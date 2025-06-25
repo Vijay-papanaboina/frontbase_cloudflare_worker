@@ -1,0 +1,17 @@
+name = "test-worker"
+main = "src/worker.js"
+compatibility_date = "2023-08-23"
+
+[unsafe.metadata.observability]
+enabled = true
+
+
+[[r2_buckets]]
+binding = "R2Binding"
+bucket_name = "frontbase"
+preview_bucket_name = "frontbase"
+
+
+# [[routes]]
+# pattern = "*.agrifacts.space/*"
+# custom_domain = true
