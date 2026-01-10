@@ -1,73 +1,127 @@
 # Frontbase Cloudflare Worker
 
-A Cloudflare Worker that serves static frontends from R2 based on subdomain. Subdomain → R2 folder prefix mapping is stored in KV. SPA routes fall back to `index.html`.
+**Frontbase** is a platform for deploying static frontend projects to the edge. This Cloudflare Worker serves deployed sites from R2 storage based on subdomain routing via KV.
+
+**This repo** contains the edge worker that routes `*.frontbase.space` requests to the correct R2 files.
 
 - Frontend repo: [Frontbase-Frontend](https://github.com/Vijay-papanaboina/Frontbase-Frontend.git)
 - Backend repo: [Frontbase-Backend](https://github.com/Vijay-papanaboina/Frontbase-Backend.git)
 
 ## How It Works
 
-- Extract subdomain from request host (e.g., `myapp.example.com` → `myapp`).
-- Lookup `folderPrefix` in KV using `Frontbase_KV_Binding.get(subdomain)`.
-- Build key `${folderPrefix}${pathname}` and serve from R2 via `R2Binding`.
-- If not an asset and the object is missing, attempt SPA fallback to `${folderPrefix}/index.html`.
+```mermaid
+sequenceDiagram
+    participant User
+    participant Worker
+    participant KV
+    participant R2
 
-### Directory Structure
+    User->>Worker: Request myapp.frontbase.space/page
+    Worker->>Worker: Extract subdomain "myapp"
+    Worker->>KV: GET "myapp"
+    KV-->>Worker: "owner/repo"
+    Worker->>R2: GET "owner/repo/page" or "owner/repo/index.html"
+    R2-->>Worker: File contents
+    Worker-->>User: Serve with correct MIME type
+```
+
+### Request Flow
+
+1. **Extract subdomain** from request host (`myapp.frontbase.space` → `myapp`)
+2. **Lookup folder prefix** in KV using the subdomain as key
+3. **Build R2 key** as `${folderPrefix}/${pathname}`
+4. **Fetch from R2** and serve with correct content type
+5. **SPA fallback** - if file not found and not an asset, serve `index.html`
+
+## Architecture
+
+```mermaid
+flowchart LR
+    subgraph Cloudflare
+        Worker[Worker]
+        KV[(KV Store)]
+        R2[(R2 Storage)]
+    end
+
+    User --> Worker
+    Worker --> KV
+    Worker --> R2
+
+    subgraph "KV Data"
+        K1["myapp → owner/repo"]
+        K2["other-app → user2/project"]
+    end
+
+    subgraph "R2 Files"
+        F1["owner/repo/index.html"]
+        F2["owner/repo/assets/..."]
+    end
+```
+
+## Directory Structure
 
 ```
 r2-worker/
-  src/worker.js
-  wrangler.toml
+  src/
+    worker.js       # Main worker code
+  wrangler.toml     # Cloudflare configuration
 ```
 
-### Wrangler Bindings
+## Wrangler Bindings
 
 Defined in `wrangler.toml`:
 
-- R2 bucket
-  - binding: `R2Binding`
-  - bucket_name: `frontbase`
-- KV namespace
-  - binding: `Frontbase_KV_Binding`
-  - id: (configured in toml)
+| Binding                | Type         | Name                |
+| ---------------------- | ------------ | ------------------- |
+| `R2Binding`            | R2 Bucket    | `frontbase`         |
+| `Frontbase_KV_Binding` | KV Namespace | (your namespace ID) |
 
-## Local Setup
+## Local Development
 
-1. Install Wrangler:
-   - npm i -g wrangler
-2. Authenticate:
-   - wrangler login
-3. Ensure bindings in `wrangler.toml` point to your R2 bucket and KV namespace.
-4. Dev:
-   - wrangler dev
+```bash
+# Install Wrangler globally
+npm i -g wrangler
+
+# Authenticate with Cloudflare
+wrangler login
+
+# Start local dev server
+wrangler dev
+```
 
 ## Deployment
 
-- Target: Cloudflare Workers
-- Deploy:
-  - wrangler deploy
-- DNS:
-  - Point your domain/subdomain to the Worker (Routes)
-- KV data:
-  - Ensure the backend populates KV:
-    - key: subdomain
-    - value: R2 folder prefix (e.g., `users/123/repos/app-abc/build`)
+```bash
+# Deploy to Cloudflare
+wrangler deploy
+```
+
+### DNS Configuration
+
+Point your domain to the Worker:
+
+- `*.frontbase.space` → Worker route
+
+### KV Population
+
+The backend automatically populates KV when deploying:
+
+- **Key**: subdomain (e.g., `myapp`)
+- **Value**: R2 folder prefix (e.g., `owner/repo`)
 
 ## Troubleshooting
 
-- 404 Not Found:
-  - KV key missing for subdomain or wrong prefix; verify KV values.
-- Wrong MIME types:
-  - MIME is inferred; verify your files/extensions.
-- SPA deep-links 404:
-  - Ensure non-asset paths fall back to `${prefix}/index.html` (implemented).
-- Permissions:
-  - Verify R2 and KV bindings exist in the deployed environment.
+| Issue             | Solution                                |
+| ----------------- | --------------------------------------- |
+| 404 Not Found     | Check KV has the subdomain key          |
+| Wrong MIME type   | Verify file extension is correct        |
+| SPA routes 404    | Non-asset paths fall back to index.html |
+| Permission denied | Verify R2/KV bindings in wrangler.toml  |
 
 ## Cross-Links
 
-- Backend: https://github.com/Vijay-papanaboina/Frontbase-Backend.git
-- Frontend: https://github.com/Vijay-papanaboina/Frontbase-Frontend.git
+- **Backend**: https://github.com/Vijay-papanaboina/Frontbase-Backend.git
+- **Frontend**: https://github.com/Vijay-papanaboina/Frontbase-Frontend.git
 
 ## License
 
