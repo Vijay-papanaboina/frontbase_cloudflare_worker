@@ -7,6 +7,17 @@
 - Frontend repo: [Frontbase-Frontend](https://github.com/Vijay-papanaboina/Frontbase-Frontend.git)
 - Backend repo: [Frontbase-Backend](https://github.com/Vijay-papanaboina/Frontbase-Backend.git)
 
+## Design Decisions & Trade-offs
+
+| ✅ Advantages                                                      | ⚠️ Trade-offs                                                    |
+| ------------------------------------------------------------------ | ---------------------------------------------------------------- |
+| **Zero build costs** - Uses GitHub Actions (free for public repos) | **Workflow injection** - Backend creates files in user's repo    |
+| **Unlimited builds** - No server limits                            | **Secret injection** - Backend adds secrets to repo              |
+| **Edge serving** - R2 + Workers = global CDN                       | **Public repos only** - By design, to minimize security exposure |
+| **Simple routing** - KV lookup per subdomain                       | **Requires user trust** - Users grant repo access                |
+
+> **Why public repos only?** Since workflows and secrets are injected into user repositories, limiting to public repos reduces security exposure.
+
 ## How It Works
 
 ```mermaid
@@ -67,6 +78,16 @@ r2-worker/
   wrangler.toml     # Cloudflare configuration
 ```
 
+## Free Tier - No Cost to Run
+
+| Service            | Free Quota                                |
+| ------------------ | ----------------------------------------- |
+| Cloudflare R2      | 10 GB storage, 1M writes, 10M reads/month |
+| Cloudflare KV      | 1 GB storage, 100K reads/day              |
+| Cloudflare Workers | 100K requests/day                         |
+
+> See [Backend README](https://github.com/Vijay-papanaboina/Frontbase-Backend#getting-your-api-keys) for full setup guide.
+
 ## Wrangler Bindings
 
 Defined in `wrangler.toml`:
@@ -98,9 +119,12 @@ wrangler deploy
 
 ### DNS Configuration
 
+**Requirement:** You need a domain to serve deployed sites.
+
 Point your domain to the Worker:
 
-- `*.frontbase.space` → Worker route
+- Add a wildcard DNS record: `*.yourdomain.com` → Worker route
+- Or use a subdomain: `*.projects.yourdomain.com`
 
 ### KV Population
 
