@@ -32,7 +32,17 @@ export default {
 				const headers = new Headers();
 				const contentType = getMimeType(ext);
 				if (contentType) headers.set('Content-Type', contentType);
-				return new Response(await object.body, { headers });
+
+				// Add cache headers based on file type
+				const cacheControl = getCacheControl(ext, pathname);
+				headers.set('Cache-Control', cacheControl);
+
+				// Add ETag for efficient caching
+				if (object.etag) {
+					headers.set('ETag', object.etag);
+				}
+
+				return new Response(object.body, { headers });
 			}
 
 			// If not found and not an asset, try to serve index.html for SPA routes
@@ -42,7 +52,13 @@ export default {
 				if (indexObject) {
 					const headers = new Headers();
 					headers.set('Content-Type', 'text/html');
-					return new Response(await indexObject.body, { headers });
+					headers.set('Cache-Control', 'public, max-age=3600, must-revalidate'); // 1 hour for HTML
+
+					if (indexObject.etag) {
+						headers.set('ETag', indexObject.etag);
+					}
+
+					return new Response(indexObject.body, { headers });
 				}
 			}
 
@@ -67,4 +83,30 @@ function getMimeType(ext) {
 		txt: 'text/plain',
 		wasm: 'application/wasm',
 	}[ext];
+}
+
+function getCacheControl(ext, pathname) {
+	// HTML files: short cache for quick updates (1 hour)
+	if (ext === 'html') {
+		return 'public, max-age=3600, must-revalidate';
+	}
+
+	// Immutable assets (with hashes in filename): 1 year
+	// Vite/Webpack typically generate files like: app.a1b2c3d4.js
+	if (/\.[a-f0-9]{8,}\.(js|css)$/i.test(pathname)) {
+		return 'public, max-age=31536000, immutable';
+	}
+
+	// JS and CSS without hashes: 1 hour (may update)
+	if (ext === 'js' || ext === 'css') {
+		return 'public, max-age=3600, must-revalidate';
+	}
+
+	// Images and fonts: 1 month
+	if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'ico', 'webp', 'woff', 'woff2', 'ttf', 'eot'].includes(ext)) {
+		return 'public, max-age=2592000, immutable';
+	}
+
+	// Other static assets: 1 day
+	return 'public, max-age=86400';
 }
